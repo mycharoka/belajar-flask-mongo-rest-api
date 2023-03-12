@@ -3,13 +3,21 @@ from flask_pymongo import PyMongo
 from bson.json_util import dumps
 from bson.objectid import ObjectId
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, jwt_required
+from dotenv import load_dotenv
 import json
+import os
+
+load_dotenv()
 
 app = Flask(__name__)
 
-app.secret_key = "b4pAk4U_B0d4t"
+app.secret_key = os.getenv("SECRET_KEY")
 
-app.config['MONGO_URI'] = "mongodb://localhost:27023/Users"
+app.config['MONGO_URI'] = os.getenv("MONGO_CONNECTION")
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET")
+
+jwt = JWTManager(app)
 
 mongo = PyMongo(app)
 
@@ -22,26 +30,75 @@ def add_user():
   _email = _json['email']
   _password = _json['password']
 
-  pass_condition = _name and _email and _password and request.method == 'POST'
-  print('is condition pass ? ', pass_condition)
+  validate_user = mongo.db.user.find_one({
+    'name': _name,
+    'email': _email
+  })
+  print('validate user >> ', validate_user) 
 
-  if pass_condition:
-    _hashed_password = generate_password_hash(_password)
-    print('hash password >> ', _hashed_password)
+  if validate_user:
+    print('duplicate')
+    return already_exist()
+  else:
+    print('create new')
+    pass_condition = _name and _email and _password and request.method == 'POST'
+    print('is condition pass ? ', pass_condition)
 
-    id = mongo.db.user.insert_one({'name': _name, 'email': _email, 'password': _hashed_password})
-    print("id mongo >> ", id)
-    response = jsonify("User added!")
-    response.status_code = 200
+    if pass_condition:
+      _hashed_password = generate_password_hash(_password)
+      print('hash password >> ', _hashed_password)
 
-    return response
+      id = mongo.db.user.insert_one({'name': _name, 'email': _email, 'password': _hashed_password})
+      print("id mongo >> ", id)
+      message = {
+        'status': 200,
+        'message': 'Success Added!'
+      }
+      response = jsonify(message)
+      response.status_code = 200
 
+      return response
+
+    else:
+      return not_found()
+
+@app.route('/login', methods=['POST'])
+def user_login():
+  print('request json >> ', request.json)
+  user = request.json
+  print('user >> ', user['email'])
+  validate_user = mongo.db.user.find_one({'email': user['email']})
+  print('validate user >> ', validate_user['password'])
+  if validate_user:
+    # hashed_password = generate_password_hash(user['password'])
+    # print('hashed password >> ', hashed_password)
+
+    check_password = check_password_hash(validate_user['password'], user['password'])
+    print('validate password >> ', check_password)
+
+    if check_password:
+      token = create_access_token(identity=user['email'])
+      message = {
+        'status': 200,
+        'message': 'Login Success',
+        'token': 'Bearer '+ token
+      }
+
+      return jsonify(message)
+    
+    else:
+      return not_match()
+    
   else:
     return not_found()
 
 
+
 @app.route('/users')
+@jwt_required()
 def get_users():
+  accessed_user = get_jwt_identity()
+  print('this one >> ', accessed_user)
   users = mongo.db.user.find()
   response = dumps(users)
   print('type response >> ', type(response))
@@ -97,6 +154,13 @@ def update_user(id):
   else:
     return not_found()
 
+@app.route('/')
+def index():
+  return {
+    'status': 200,
+    'message': "OK"
+  }
+
 @app.errorhandler(404)
 def not_found(error=None):
   message = {
@@ -106,6 +170,30 @@ def not_found(error=None):
 
   response = jsonify(message)
   response.status_code = 404
+
+  return response
+
+@app.errorhandler(400)
+def already_exist(error=None):
+  message = {
+    'status': 400,
+    'messsage': 'Already Exist!'
+  }
+
+  response = jsonify(message)
+  response.status_code = 400
+
+  return response
+
+@app.errorhandler(400)
+def not_match(error=None):
+  message = {
+    'status': 400,
+    'message': 'Password Not Match'
+  }
+
+  response = jsonify(message)
+  response.status_code = 400
 
   return response
 
