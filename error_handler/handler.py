@@ -11,6 +11,7 @@ class Handler:
 
     res = jsonify(msg)
     res.status_code = 400
+    print('res >> ', res)
 
     return res
   
@@ -22,7 +23,8 @@ class Handler:
     }
 
     res = jsonify(msg)
-    res.status_code(400)
+    res.status_code = 400
+    print('not match >>> ',res)
 
     return res
   
@@ -34,6 +36,6 @@ class Handler:
     }
 
     res = jsonify(msg)
-    res.status_code(404)
+    res.status_code = 404
 
     return res

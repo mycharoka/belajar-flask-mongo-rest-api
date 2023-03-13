@@ -5,6 +5,7 @@ from bson.objectid import ObjectId
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import JWTManager, create_access_token, get_jwt_identity, jwt_required
 from dotenv import load_dotenv
+from error_handler import handler
 import json
 import os
 
@@ -30,15 +31,15 @@ def add_user():
   _email = _json['email']
   _password = _json['password']
 
-  validate_user = mongo.db.user.find_one({
+  user_exist = mongo.db.user.find_one({
     'name': _name,
     'email': _email
   })
-  print('validate user >> ', validate_user) 
+  print('user exist >> ', user_exist) 
 
-  if validate_user:
+  if user_exist:
     print('duplicate')
-    return already_exist()
+    return handler.Handler.already_exist()
   else:
     print('create new')
     pass_condition = _name and _email and _password and request.method == 'POST'
@@ -60,7 +61,7 @@ def add_user():
       return response
 
     else:
-      return not_found()
+      return handler.Handler.not_found()
 
 @app.route('/login', methods=['POST'])
 def user_login():
@@ -87,10 +88,12 @@ def user_login():
       return jsonify(message)
     
     else:
-      return not_match()
+      print('kesini dong harusnya')
+      print(handler.Handler)
+      return handler.Handler.not_match()
     
   else:
-    return not_found()
+    return handler.Handler.not_found()
 
 
 
@@ -152,7 +155,7 @@ def update_user(id):
     return response
 
   else:
-    return not_found()
+    return handler.Handler.not_found()
 
 @app.route('/')
 def index():
@@ -161,41 +164,6 @@ def index():
     'message': "OK"
   }
 
-@app.errorhandler(404)
-def not_found(error=None):
-  message = {
-    'status': 404,
-    'message': 'Not Found ' + request.url
-  }
-
-  response = jsonify(message)
-  response.status_code = 404
-
-  return response
-
-@app.errorhandler(400)
-def already_exist(error=None):
-  message = {
-    'status': 400,
-    'messsage': 'Already Exist!'
-  }
-
-  response = jsonify(message)
-  response.status_code = 400
-
-  return response
-
-@app.errorhandler(400)
-def not_match(error=None):
-  message = {
-    'status': 400,
-    'message': 'Password Not Match'
-  }
-
-  response = jsonify(message)
-  response.status_code = 400
-
-  return response
 
 if __name__ == "__main__":
   app.run(debug=True)
